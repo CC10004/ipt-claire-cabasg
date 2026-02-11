@@ -4,6 +4,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\controllers\UserController;
 
+// Act1
+
+Route::get('user', function () {
+    return 'Hello, Im Claire';
+});
+
 Route::prefix('users')->group(function(){
     Route::get('/', [UserController::class, 'index']);
     Route::post('/', [UserController::class, 'store']);
