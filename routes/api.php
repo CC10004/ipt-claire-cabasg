@@ -27,3 +27,7 @@ Route::prefix('auth')->group(function(){
 Route::get('/profile', function (Request $request) { 
     return $request->user(); 
     })->middleware('auth:sanctum');
+
+Route::middleware(['auth:sanctum', 'role:Admin,Chairman'])->get('/management', function () {
+    return "Admin or Chairman";
+});

@@ -36,9 +36,23 @@ class UserController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        $user = User::findOrFail($id);
-        $user->update($request->all());
-        return $user;
+    $user = User::findOrFail($id);
+
+    // Only update fillable fields
+    $user->fill($request->only($user->getFillable()));
+
+    // Force save and check result
+    if ($user->save()) {
+        return response()->json([
+            'message' => 'User updated successfully',
+            'user' => $user
+        ]);
+    } else {
+        return response()->json([
+            'message' => 'Failed to update user',
+            'user' => $user
+        ], 500);
+    }
     }
 
     /**
