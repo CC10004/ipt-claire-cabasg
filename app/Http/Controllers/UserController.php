@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\User;
+use App\Notifications\NewUserNotification;
+use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
 {
@@ -20,7 +22,27 @@ class UserController extends Controller
      */
     public function store(Request $request)
     {
-        return User::create($request->all());
+        try {
+            $data = $request->all();
+            $data['password'] = Hash::make($data['password']);
+
+            $user = User::create($data);
+
+            $user->assignRole('Admin'); 
+
+            // comment this first if unsure
+            // $user->notify(new NewUserNotification());
+
+            return response()->json([
+                'message' => 'User created successfully',
+                'user' => $user
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -53,6 +75,8 @@ class UserController extends Controller
             'user' => $user
         ], 500);
     }
+
+    //$user->notify(new NewUserNotification());
     }
 
     /**
