@@ -4,88 +4,104 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\User;
-use App\Notifications\NewUserNotification;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 
 class UserController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
-        return User::all();
+        return response()->json(User::all());
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
-        try {
-            $data = $request->all();
-            $data['password'] = Hash::make($data['password']);
+        $data = $request->only(['name', 'email']);
 
-            $user = User::create($data);
-
-            $user->assignRole('Admin'); 
-
-            // comment this first if unsure
-            // $user->notify(new NewUserNotification());
-
-            return response()->json([
-                'message' => 'User created successfully',
-                'user' => $user
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'error' => $e->getMessage()
-            ], 500);
+        if ($request->filled('password')) {
+            $data['password'] = Hash::make($request->password);
         }
+
+        // Profile photo: FORM-DATA
+        if ($request->hasFile('profile_photo')) {
+            $data['profile_photo'] = $request->file('profile_photo')->store('profiles', 'public');
+        }
+
+        // Profile photo: JSON Base64
+        elseif ($request->filled('profile_photo') && str_starts_with($request->profile_photo, 'data:image')) {
+            $data['profile_photo'] = $this->storeBase64Image($request->profile_photo);
+        }
+
+        $user = User::create($data);
+
+        return response()->json([
+            'message' => 'User created successfully',
+            'user' => $user
+        ], 201);
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(string $id)
     {
-        return User::findOrFail($id);
+        return response()->json(User::findOrFail($id));
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, string $id)
     {
-    $user = User::findOrFail($id);
+        $user = User::findOrFail($id);
+        $data = [];
 
-    // Only update fillable fields
-    $user->fill($request->only($user->getFillable()));
+        // Update simple fields safely
+        foreach (['name', 'email', 'password'] as $field) {
+            if ($request->filled($field)) {
+                $data[$field] = $field === 'password' ? Hash::make($request->password) : $request->$field;
+            }
+        }
 
-    // Force save and check result
-    if ($user->save()) {
+        // Profile photo: FORM-DATA
+        if ($request->hasFile('profile_photo')) {
+            $this->deleteOldProfilePhoto($user);
+            $data['profile_photo'] = $request->file('profile_photo')->store('profiles', 'public');
+        }
+
+        // Profile photo: JSON Base64
+        elseif ($request->filled('profile_photo') && str_starts_with($request->profile_photo, 'data:image')) {
+            $this->deleteOldProfilePhoto($user);
+            $data['profile_photo'] = $this->storeBase64Image($request->profile_photo);
+        }
+
+        // Update only if there is data
+        if (!empty($data)) {
+            $user->update($data);
+        }
+
         return response()->json([
             'message' => 'User updated successfully',
-            'user' => $user
+            'user' => $user->fresh()
         ]);
-    } else {
-        return response()->json([
-            'message' => 'Failed to update user',
-            'user' => $user
-        ], 500);
     }
 
-    //$user->notify(new NewUserNotification());
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(string $id)
     {
         $user = User::findOrFail($id);
+        $this->deleteOldProfilePhoto($user);
         $user->delete();
+
         return response()->json(['message' => 'User deleted successfully']);
+    }
+
+    private function storeBase64Image(string $base64Image): string
+    {
+        $image = preg_replace('#^data:image/\w+;base64,#i', '', $base64Image);
+        $image = str_replace(' ', '+', $image);
+        $imageName = uniqid() . '.png';
+        Storage::disk('public')->put('profiles/' . $imageName, base64_decode($image));
+        return 'profiles/' . $imageName;
+    }
+
+    private function deleteOldProfilePhoto(User $user): void
+    {
+        if ($user->profile_photo && Storage::disk('public')->exists($user->profile_photo)) {
+            Storage::disk('public')->delete($user->profile_photo);
+        }
     }
 }

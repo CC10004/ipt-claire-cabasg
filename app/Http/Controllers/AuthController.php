@@ -13,13 +13,20 @@ class AuthController extends Controller
     // REGISTER
     public function register(Request $request)
     {
-        $user = User::create([
-            'name'     => $request->name,
-            'email'    => $request->email,
-            'password' => Hash::make($request->password),
-            'role_id' => $role->id
-        ]);
+        $data = $request->only(['name', 'email', 'password']);
 
+        $data['password'] = Hash::make($data['password']);
+
+        // Handle profile photo
+        if ($request->hasFile('profile_photo')) {
+            $data['profile_photo'] = $request->file('profile_photo')
+                ->store('profiles', 'public');
+        }
+
+        $user = User::create($data);
+        // Assign default role
+        $user->assignRole('User'); // make sure 'User' exists in roles table
+        
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([

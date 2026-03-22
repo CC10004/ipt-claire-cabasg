@@ -11,19 +11,22 @@ Route::get('user', function () {
     return 'Hello, Im Claire';
 });
 
-Route::prefix('users')->group(function(){
-    Route::get('/', [UserController::class, 'index']);
-    Route::post('/', [UserController::class, 'store']);
-    Route::get('/{id}', [UserController::class, 'show']);
-    Route::put('/{id}', [UserController::class, 'update']);
-    Route::delete('/{id}', [UserController::class, 'destroy']); 
-});
-
-Route::prefix('auth')->group(function(){
+Route::prefix('auth')->group(function() {
     Route::post('/register', [AuthController::class, 'register']); 
     Route::post('/login', [AuthController::class, 'login']); 
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
-});    
+});
+
+// User routes (protected)
+Route::prefix('users')->middleware('auth:sanctum')->group(function() {
+    Route::get('/', [UserController::class, 'index']);
+    Route::get('/{id}', [UserController::class, 'show']);
+    Route::post('/', [UserController::class, 'store']);
+    
+    // Update & delete require permissions
+    Route::put('/{id}', [UserController::class, 'update']);
+    Route::delete('/{id}', [UserController::class, 'destroy']);
+});  
 Route::get('/profile', function (Request $request) { 
     return $request->user(); 
     })->middleware('auth:sanctum');
@@ -31,7 +34,5 @@ Route::get('/profile', function (Request $request) {
 Route::middleware(['auth:sanctum', 'role:Admin|Chairman'])->get('/management', function () {
     return "Admin or Chairman only";
 });
-
-Route::middleware(['auth:sanctum', 'permission:update users'])->put('/users/{id}', [UserController::class, 'update']);
 
  
